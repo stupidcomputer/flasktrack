@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template
 import json
 
-from appendbase import Appendbase
+from flasktrack.appendbase import Appendbase
 
 submit_secret = "test"
 app = Flask(__name__)
