@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+            crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    </head>
+    <body>
+        <div id="container">
+            <div id="map"></div>
+            <div id="bottomcontent">
+                <p>
+                Latest point uploaded <span id="latest_upload"></span> seconds ago at battery level <span id="battery_level"></span>.
+                This page was last updated <span id="seconds">0</span> <span id="second_pluralization">seconds</span> ago.
+                <a href="#" id="update">Click here to update it.</a>
+                <span id="autoupdate">(<a href="./view?autoupdate=true">Or, update automatically.</a>)</span>
+                <details>
+                    <summary>How do uploads work?</summary>
+
+                    The phone uploads a point when both conditions are satisifed:
+
+                    <ul>
+                        <li>The phone moves a meaningful distance, and</li>
+                        <li>The phone is able to reach this server (i.e. has a working Internet connection)</li>
+                    </ul>
+                </details>
+                </p>
+            </div>
+        </div>
+    </body>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            padding: 0;
+            margin: 0;
+            display: block;
+            font-family: sans-serif;
+        }
+        #container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #bottomcontent {
+            flex: 0 0 auto;
+            padding: 0.5rem;
+            border-top: 10px dotted black;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    <script>
+        {{ data_js|safe }}
+
+        var map = L.map('map');
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        var points = [];
+        location_data.forEach((item) => {
+            points.push([item.latitude, item.longitude]);
+        });
+        var polyline = L.polyline(points, {color: 'red'}).addTo(map);
+
+        var seconds_location = document.getElementById("latest_upload");
+        var battery_level = document.getElementById("battery_level");
+        var autoupdate = document.getElementById("autoupdate");
+        var update_seconds = document.getElementById("seconds");
+        var update_seconds_plural = document.getElementById("second_pluralization");
+        var update_page = document.getElementById("update");
+
+        let latest = location_data[location_data.length - 1];
+        var now = Math.floor(Date.now() / 1000);
+        var diff = now - Number(latest.timestamp);
+
+        L.marker([latest.latitude, latest.longitude]).addTo(map);
+        map.setView([latest.latitude, latest.longitude], 17)
+
+        seconds_location.innerHTML = diff;
+        setInterval(function () {
+            seconds_location.innerHTML = Number(seconds_location.innerHTML) + 1;
+            update_seconds.innerHTML = Number(update_seconds.innerHTML) + 1;
+            if(update_seconds.innerHTML == "1") {
+                update_seconds_plural.innerHTML = "second";
+            } else {
+                update_seconds_plural.innerHTML = "seconds";
+            }
+            if(Number(update_seconds.innerHTML) > 15) {
+                if(window.location.href.endsWith("autoupdate=true")) window.location.reload();
+            }
+        }, 1000);
+        if(window.location.href.endsWith("autoupdate=true")) autoupdate.style.display = "none";
+        battery_level.innerHTML = latest.batterylevel;
+        update_page.onclick = (e) => {
+            window.location.reload();
+        };
+    </script>
+</html>
