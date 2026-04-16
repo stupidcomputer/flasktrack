@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>Current Location</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+            crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            html, body {
+                height: 100%;
+                width: 100%;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background: #f5f5f5;
+            }
+            
+            #container {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            
+            #map {
+                flex: 1;
+                width: 100%;
+                min-height: 0;
+            }
+            
+            #info-panel {
+                background: white;
+                padding: 1rem;
+                box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+                border-top: 1px solid #ddd;
+            }
+            
+            #location-info {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .info-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 0.95rem;
+            }
+            
+            .info-label {
+                color: #666;
+                font-weight: 500;
+            }
+            
+            .info-value {
+                color: #333;
+                text-align: right;
+                font-weight: 600;
+            }
+            
+            .info-row.timestamp {
+                font-size: 0.85rem;
+                color: #999;
+            }
+            
+            .info-row.timestamp .info-value {
+                color: #666;
+                font-weight: normal;
+            }
+            
+            #accuracy-indicator {
+                padding: 0.75rem;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                text-align: center;
+                margin-top: 0.5rem;
+            }
+            
+            .accuracy-good {
+                background: #e8f5e9;
+                color: #2e7d32;
+            }
+            
+            .accuracy-fair {
+                background: #fff3e0;
+                color: #e65100;
+            }
+            
+            .accuracy-poor {
+                background: #ffebee;
+                color: #c62828;
+            }
+            
+            @media (max-height: 600px) {
+                #info-panel {
+                    padding: 0.75rem;
+                }
+                
+                .info-row {
+                    font-size: 0.9rem;
+                    gap: 0.5rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="map"></div>
+            <div id="info-panel">
+                <div id="location-info">
+                    <div class="info-row">
+                        <span class="info-label">Latitude</span>
+                        <span class="info-value" id="latitude">{{ location.latitude }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Longitude</span>
+                        <span class="info-value" id="longitude">{{ location.longitude }}</span>
+                    </div>
+                    {% if location.get('accuracy') %}
+                    <div class="info-row">
+                        <span class="info-label">Accuracy</span>
+                        <span class="info-value" id="accuracy">{{ location.accuracy }}m</span>
+                    </div>
+                    <div id="accuracy-indicator" class="accuracy-good">High accuracy</div>
+                    {% endif %}
+                    {% if location.get('timestamp') %}
+                    <div class="info-row timestamp">
+                        <span class="info-label">Last updated</span>
+                        <span class="info-value" id="time-ago">calculating...</span>
+                    </div>
+                    {% endif %}
+                    <div class="info-row" style="display:block; margin-top:0.75rem; text-align:left; color:#333; font-size:0.95rem; line-height:1.4;">
+                        Note: I'm in the White Senate, so if you're looking for me, you should go to the White Senate.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            const currentLocation = {
+                latitude: {{ location.latitude }},
+                longitude: {{ location.longitude }},
+                timestamp: {{ location.get('timestamp', 0) }},
+                accuracy: {{ location.get('accuracy', 'null') }}
+            };
+            
+            // Initialize map
+            const map = L.map('map', {
+                zoomControl: true,
+                scrollWheelZoom: true,
+                dragging: true,
+                tap: true
+            });
+            
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(map);
+            
+            // Add marker for current location
+            const marker = L.marker([currentLocation.latitude, currentLocation.longitude], {
+                title: 'Current Location'
+            }).addTo(map);
+            
+            // Add accuracy circle if available
+            if (currentLocation.accuracy && currentLocation.accuracy > 0) {
+                L.circle([currentLocation.latitude, currentLocation.longitude], {
+                    radius: currentLocation.accuracy,
+                    color: '#2196F3',
+                    fillColor: '#2196F3',
+                    fillOpacity: 0.1,
+                    weight: 1,
+                    dashArray: '5, 5'
+                }).addTo(map);
+            }
+            
+            // Center map on location with appropriate zoom
+            map.setView([currentLocation.latitude, currentLocation.longitude], 17);
+            
+            // Update time ago
+            function updateTimeAgo() {
+                if (currentLocation.timestamp) {
+                    const now = Math.floor(Date.now() / 1000);
+                    const diff = now - currentLocation.timestamp;
+                    const timeAgoEl = document.getElementById('time-ago');
+                    
+                    let timeStr;
+                    if (diff < 60) {
+                        timeStr = `${diff} second${diff !== 1 ? 's' : ''} ago`;
+                    } else if (diff < 3600) {
+                        const mins = Math.floor(diff / 60);
+                        timeStr = `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+                    } else if (diff < 86400) {
+                        const hours = Math.floor(diff / 3600);
+                        timeStr = `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+                    } else {
+                        const days = Math.floor(diff / 86400);
+                        timeStr = `${days} day${days !== 1 ? 's' : ''} ago`;
+                    }
+                    
+                    timeAgoEl.textContent = timeStr;
+                }
+            }
+            
+            // Update accuracy indicator
+            function updateAccuracyIndicator() {
+                const accuracyEl = document.getElementById('accuracy-indicator');
+                if (accuracyEl && currentLocation.accuracy) {
+                    if (currentLocation.accuracy <= 10) {
+                        accuracyEl.className = 'accuracy-good';
+                        accuracyEl.textContent = 'High accuracy (< 10m)';
+                    } else if (currentLocation.accuracy <= 50) {
+                        accuracyEl.className = 'accuracy-fair';
+                        accuracyEl.textContent = 'Fair accuracy (< 50m)';
+                    } else {
+                        accuracyEl.className = 'accuracy-poor';
+                        accuracyEl.textContent = 'Poor accuracy (> 50m)';
+                    }
+                }
+            }
+            
+            updateTimeAgo();
+            updateAccuracyIndicator();
+            
+            // Update time ago every second
+            setInterval(updateTimeAgo, 1000);
+        </script>
+    </body>
+</html>
